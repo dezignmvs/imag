@@ -6,6 +6,7 @@
     <title>Membership Card</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <link href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@200,300,400,500,600,700&display=swap" rel="stylesheet">
 
     <style>
@@ -36,11 +37,13 @@
             </div>
 
             <form onsubmit="memberApp.generate(event)" id="card-form" class="space-y-4 opacity-50 pointer-events-none transition-opacity">
+                <!-- Name -->
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
                     <input type="text" id="user-name" required placeholder="Ex: John Doe" class="w-full p-3 rounded-lg input-dark">
                 </div>
 
+                <!-- Batch -->
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-1">Batch</label>
                     <div class="relative">
@@ -58,6 +61,18 @@
                             <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
                         </div>
                     </div>
+                </div>
+
+                <!-- Mobile (Input kept for barcode generation, but not shown on card) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Mobile Number (For Barcode)</label>
+                    <input type="tel" id="user-mobile" required placeholder="+91 99999 99999" class="w-full p-3 rounded-lg input-dark">
+                </div>
+
+                <!-- Photo Upload -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Your Photo (For records)</label>
+                    <input type="file" id="user-photo" accept="image/*" class="w-full p-2 rounded-lg input-dark text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-yellow-500 file:text-black hover:file:bg-yellow-400">
                 </div>
 
                 <button type="submit" id="generate-btn" class="w-full py-4 rounded-lg btn-primary mt-6 text-lg hover:brightness-110 transition flex items-center justify-center">
@@ -105,24 +120,18 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Fetch Global Settings
         window.getGlobalSettings = async () => {
             try {
                 const docSnap = await getDoc(doc(db, "app_settings", "config"));
                 if (docSnap.exists()) return { success: true, data: docSnap.data() };
                 return { success: false, error: "No configuration found. Please ask Admin to setup." };
-            } catch (e) {
-                return { success: false, error: e.message };
-            }
+            } catch (e) { return { success: false, error: e.message }; }
         };
 
-        // Save generated card
-        window.saveCardToDB = async (name, batch, imageUrl) => {
+        window.saveCardToDB = async (data) => {
             try {
                 await addDoc(collection(db, "generated_cards"), {
-                    name: name,
-                    batch: batch,
-                    imageUrl: imageUrl,
+                    ...data,
                     timestamp: serverTimestamp()
                 });
                 return { success: true };
@@ -141,50 +150,64 @@
             async init() {
                 if (window.getGlobalSettings) {
                     const result = await window.getGlobalSettings();
-                    
                     if (result.success) {
                         this.config = result.data.config;
                         this.imgSrc = result.data.templateUrl;
-                        
                         document.getElementById('loading-config').innerHTML = "System Ready ✓";
                         document.getElementById('loading-config').className = "text-xs text-green-500 mt-2";
-                        
-                        // Enable Form
                         const form = document.getElementById('card-form');
                         form.classList.remove('opacity-50', 'pointer-events-none');
                     } else {
                         document.getElementById('loading-config').innerHTML = `Error: ${result.error}`;
                         document.getElementById('loading-config').className = "text-xs text-red-500 mt-2";
                     }
-                } else {
-                    // Retry if module loading is slow
-                    setTimeout(() => this.init(), 500);
-                }
+                } else { setTimeout(() => this.init(), 500); }
             },
 
-            generate(e) {
+            async generate(e) {
                 e.preventDefault();
                 const btn = document.getElementById('generate-btn');
-                btn.disabled = true; btn.innerHTML = '<div class="loader"></div> Generating...';
+                const originalBtnText = btn.innerHTML;
+                btn.disabled = true; btn.innerHTML = '<div class="loader"></div> Processing...';
 
                 this.userData.name = document.getElementById('user-name').value;
                 this.userData.batch = document.getElementById('user-batch').value;
+                this.userData.mobile = document.getElementById('user-mobile').value;
+                
+                const photoInput = document.getElementById('user-photo');
+                const photoFile = photoInput.files[0];
 
-                this.imgObj = new Image();
-                this.imgObj.crossOrigin = "Anonymous"; // Important for saving canvas
-                this.imgObj.src = this.imgSrc;
-                
-                this.imgObj.onload = () => {
-                    this.draw();
-                    document.getElementById('view-form').style.display = 'none';
-                    document.getElementById('view-result').style.display = 'flex';
-                    this.uploadAndSave();
-                };
-                
-                this.imgObj.onerror = () => {
-                    alert("Failed to load template image. Please try again.");
-                    btn.disabled = false; btn.innerHTML = "Generate Card";
-                };
+                try {
+                    // 1. Upload User Photo first (if exists)
+                    let userPhotoUrl = null;
+                    if (photoFile) {
+                        btn.innerHTML = '<div class="loader"></div> Uploading Photo...';
+                        userPhotoUrl = await this.uploadToCloudinary(photoFile);
+                    }
+                    this.userData.userPhotoUrl = userPhotoUrl;
+
+                    // 2. Load Template and Draw Card
+                    btn.innerHTML = '<div class="loader"></div> Generating Card...';
+                    this.imgObj = new Image();
+                    this.imgObj.crossOrigin = "Anonymous";
+                    this.imgObj.src = this.imgSrc;
+                    
+                    this.imgObj.onload = async () => {
+                        this.draw();
+                        document.getElementById('view-form').style.display = 'none';
+                        document.getElementById('view-result').style.display = 'flex';
+                        
+                        // 3. Upload Generated Card & Save to DB
+                        await this.uploadAndSaveCard();
+                        btn.disabled = false; btn.innerHTML = originalBtnText;
+                    };
+                    
+                    this.imgObj.onerror = () => { throw new Error("Template load failed"); };
+
+                } catch (error) {
+                    alert("Error: " + error.message);
+                    btn.disabled = false; btn.innerHTML = originalBtnText;
+                }
             },
 
             draw() {
@@ -193,55 +216,94 @@
                 canvas.width = this.imgObj.width; canvas.height = this.imgObj.height;
                 ctx.drawImage(this.imgObj, 0, 0);
 
-                const nameX = (this.config.name.x / 100) * canvas.width;
-                const nameY = (this.config.name.y / 100) * canvas.height;
-                const nameFontSize = this.config.name.size * (canvas.width / 1000) * 2;
+                const drawText = (text, config, color, weight) => {
+                    if (!config) return;
+                    const x = (config.x / 100) * canvas.width;
+                    const y = (config.y / 100) * canvas.height;
+                    const size = config.size * (canvas.width/1000) * 1.5;
+                    ctx.font = `${weight} ${size}px 'Clash Grotesk'`;
+                    ctx.fillStyle = color;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(text, x, y);
+                };
+
+                drawText(this.userData.name.toUpperCase(), this.config.name, '#FFFFFF', '500');
+                drawText(this.userData.batch, this.config.batch, '#FFD700', '200');
                 
-                ctx.font = `500 ${nameFontSize}px 'Clash Grotesk'`;
-                ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'center';
-                ctx.fillText(this.userData.name.toUpperCase(), nameX, nameY);
+                // Mobile text drawing REMOVED as requested.
 
-                const batchX = (this.config.batch.x / 100) * canvas.width;
-                const batchY = (this.config.batch.y / 100) * canvas.height;
-                const batchFontSize = this.config.batch.size * (canvas.width / 1000) * 1.5;
+                // Draw Barcode (Data comes from mobile input)
+                if (this.userData.mobile) {
+                    const tempCanvas = document.createElement('canvas');
+                    try {
+                        const barcodeValue = this.userData.mobile.replace(/[^a-zA-Z0-9]/g, '');
+                        
+                        JsBarcode(tempCanvas, barcodeValue, {
+                            format: "CODE128",
+                            lineColor: "#ff007f", // Pink Barcode
+                            background: null,
+                            displayValue: false,
+                            width: 2,
+                            height: 50,
+                            margin: 0
+                        });
 
-                ctx.font = `200 ${batchFontSize}px 'Clash Grotesk'`;
-                ctx.fillStyle = '#FFD700'; ctx.textAlign = 'center';
-                ctx.fillText(this.userData.batch, batchX, batchY);
+                        const bcConf = this.config.barcode || {x: 50, y: 85, size: 2, rotation: 0};
+                        const bcX = (bcConf.x / 100) * canvas.width;
+                        const bcY = (bcConf.y / 100) * canvas.height;
+                        const scale = bcConf.size || 2;
+                        const rotation = bcConf.rotation || 0;
+                        
+                        const bcWidth = tempCanvas.width * scale;
+                        const bcHeight = tempCanvas.height * scale;
+
+                        ctx.save();
+                        ctx.translate(bcX, bcY);
+                        ctx.rotate(rotation * Math.PI / 180);
+                        ctx.drawImage(tempCanvas, -bcWidth/2, -bcHeight/2, bcWidth, bcHeight);
+                        ctx.restore();
+                    } catch(e) { console.error("Barcode generation error", e); }
+                }
             },
 
-            async uploadAndSave() {
+            async uploadToCloudinary(fileOrBlob) {
+                const formData = new FormData();
+                formData.append('file', fileOrBlob);
+                formData.append('upload_preset', this.cloudinary.uploadPreset);
+
+                const response = await fetch(`https://api.cloudinary.com/v1_1/${this.cloudinary.cloudName}/image/upload`, { method: 'POST', body: formData });
+                const data = await response.json();
+                if (data.secure_url) return data.secure_url;
+                throw new Error('Upload failed');
+            },
+
+            async uploadAndSaveCard() {
                 const statusDiv = document.getElementById('save-status');
-                statusDiv.innerHTML = '<p class="text-sm text-gray-400"><div class="loader" style="width:12px;height:12px;border-width:2px"></div> Saving to database...</p>';
+                statusDiv.innerHTML = '<p class="text-sm text-gray-400"><div class="loader" style="width:12px;height:12px;border-width:2px"></div> Saving card...</p>';
 
                 const canvas = document.getElementById('card-canvas');
                 
                 canvas.toBlob(async (blob) => {
                     try {
-                        const formData = new FormData();
-                        formData.append('file', blob);
-                        formData.append('upload_preset', this.cloudinary.uploadPreset);
-
-                        const response = await fetch(`https://api.cloudinary.com/v1_1/${this.cloudinary.cloudName}/image/upload`, { method: 'POST', body: formData });
-                        const data = await response.json();
+                        const cardUrl = await this.uploadToCloudinary(blob);
                         
-                        if (data.secure_url) {
-                            if (window.saveCardToDB) {
-                                const dbResult = await window.saveCardToDB(this.userData.name, this.userData.batch, data.secure_url);
-                                if (dbResult.success) {
-                                    statusDiv.innerHTML = '<p class="text-sm text-green-500">✓ Saved to Database</p>';
-                                } else {
-                                    statusDiv.innerHTML = `<p class="text-sm text-red-500">DB Error: ${dbResult.error}</p>`;
-                                }
+                        if (window.saveCardToDB) {
+                            const dbResult = await window.saveCardToDB({
+                                name: this.userData.name,
+                                batch: this.userData.batch,
+                                mobile: this.userData.mobile,
+                                userPhotoUrl: this.userData.userPhotoUrl,
+                                imageUrl: cardUrl
+                            });
+                            
+                            if (dbResult.success) {
+                                statusDiv.innerHTML = '<p class="text-sm text-green-500">✓ Saved to Database</p>';
                             } else {
-                                statusDiv.innerHTML = '<p class="text-sm text-red-500">Database connection error</p>';
+                                statusDiv.innerHTML = `<p class="text-sm text-red-500">DB Error: ${dbResult.error}</p>`;
                             }
-                        } else {
-                            throw new Error('Cloudinary Upload failed');
                         }
                     } catch (error) {
-                        console.error(error);
-                        statusDiv.innerHTML = `<p class="text-sm text-red-500">Failed to save: ${error.message}</p>`;
+                        statusDiv.innerHTML = `<p class="text-sm text-red-500">Error: ${error.message}</p>`;
                     }
                 }, 'image/png');
             },
