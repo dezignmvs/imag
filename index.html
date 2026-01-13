@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Membership Card Generator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts: Clash Grotesk -->
+    <link href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@200,300,400,500,600,700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Clash Grotesk', sans-serif;
+            background-color: #0f0f0f;
+            color: #ffffff;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+
+        .gold-text {
+            color: #FFD700;
+        }
+
+        .input-dark {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .input-dark:focus {
+            outline: none;
+            border-color: #FFD700;
+            box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #FFD700, #FDB931);
+            color: #000;
+            font-weight: 600;
+            transition: transform 0.1s;
+        }
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Hide elements initially */
+        .view-section {
+            display: none;
+        }
+        .view-section.active {
+            display: block;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navigation -->
+    <nav class="border-b border-gray-800 p-4">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="text-xl font-bold tracking-wider text-white">CARD<span class="text-yellow-500">GEN</span></div>
+            <div class="space-x-4">
+                <button onclick="app.navigate('home')" class="text-gray-400 hover:text-white transition">Home</button>
+                <button onclick="app.resetData()" class="text-xs text-red-400 hover:text-red-300 ml-4 border border-red-900 px-2 py-1 rounded">Reset All Data</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex items-center justify-center p-4">
+        
+        <!-- View: Home / Role Selection -->
+        <div id="view-home" class="view-section active w-full max-w-md">
+            <div class="glass-panel p-8 rounded-2xl text-center space-y-6">
+                <h1 class="text-3xl font-bold">Welcome</h1>
+                <p class="text-gray-400">Select your role to proceed</p>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <button onclick="app.navigate('user')" class="group p-6 rounded-xl border border-gray-700 hover:border-yellow-500 transition-all duration-300 hover:bg-gray-800/50">
+                        <div class="text-4xl mb-2 group-hover:scale-110 transition">👤</div>
+                        <div class="font-medium">Member</div>
+                        <div class="text-xs text-gray-500 mt-1">Generate Card</div>
+                    </button>
+                    
+                    <button onclick="app.navigate('admin')" class="group p-6 rounded-xl border border-gray-700 hover:border-purple-500 transition-all duration-300 hover:bg-gray-800/50">
+                        <div class="text-4xl mb-2 group-hover:scale-110 transition">🛠️</div>
+                        <div class="font-medium">Admin</div>
+                        <div class="text-xs text-gray-500 mt-1">Setup Template</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Admin Panel -->
+        <div id="view-admin" class="view-section w-full max-w-4xl">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Controls -->
+                <div class="glass-panel p-6 rounded-2xl space-y-6">
+                    <h2 class="text-2xl font-bold text-purple-400">Admin Configuration</h2>
+                    
+                    <!-- Image Upload -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Card Template Image</label>
+                        <div class="relative border-2 border-dashed border-gray-700 rounded-lg p-6 text-center hover:border-purple-500 transition cursor-pointer" onclick="document.getElementById('admin-upload').click()">
+                            <input type="file" id="admin-upload" accept="image/*" class="hidden" onchange="app.handleImageUpload(this)">
+                            <p id="upload-label" class="text-sm text-gray-300">Click to upload template (JPG/PNG)</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                            <h3 class="font-bold mb-3 text-white">Name Position & Style</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-xs text-gray-500">X Position</label><input type="range" id="name-x" min="0" max="100" value="50" class="w-full accent-purple-500" oninput="app.updatePreview()"></div>
+                                <div><label class="text-xs text-gray-500">Y Position</label><input type="range" id="name-y" min="0" max="100" value="50" class="w-full accent-purple-500" oninput="app.updatePreview()"></div>
+                                <div><label class="text-xs text-gray-500">Size</label><input type="range" id="name-size" min="10" max="100" value="40" class="w-full accent-purple-500" oninput="app.updatePreview()"></div>
+                                <div class="flex items-center"><span class="text-xs text-gray-400">Clash Grotesk Medium (White)</span></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                            <h3 class="font-bold mb-3 text-yellow-500">Batch Position & Style</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-xs text-gray-500">X Position</label><input type="range" id="batch-x" min="0" max="100" value="50" class="w-full accent-yellow-500" oninput="app.updatePreview()"></div>
+                                <div><label class="text-xs text-gray-500">Y Position</label><input type="range" id="batch-y" min="0" max="100" value="60" class="w-full accent-yellow-500" oninput="app.updatePreview()"></div>
+                                <div><label class="text-xs text-gray-500">Size</label><input type="range" id="batch-size" min="10" max="100" value="20" class="w-full accent-yellow-500" oninput="app.updatePreview()"></div>
+                                <div class="flex items-center"><span class="text-xs text-gray-400">Clash Grotesk Thin (Gold)</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="app.saveConfig()" class="w-full py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-bold transition">Save Configuration</button>
+                </div>
+
+                <!-- Live Preview -->
+                <div class="glass-panel p-4 rounded-2xl flex flex-col items-center justify-center bg-black/50">
+                    <h3 class="text-gray-400 mb-4 text-sm">Live Preview</h3>
+                    <canvas id="admin-canvas" class="max-w-full h-auto shadow-2xl rounded-lg border border-gray-800"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: User Input -->
+        <div id="view-user" class="view-section w-full max-w-md">
+            <div class="glass-panel p-8 rounded-2xl space-y-6">
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold">Get Your Card</h2>
+                    <p class="text-gray-400 text-sm mt-1">Enter your details below</p>
+                </div>
+
+                <form onsubmit="app.generateCard(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
+                        <input type="text" id="user-name" required placeholder="Ex: John Doe" class="w-full p-3 rounded-lg input-dark">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Batch</label>
+                        <div class="relative">
+                            <select id="user-batch" required class="w-full p-3 rounded-lg input-dark appearance-none cursor-pointer">
+                                <option value="" disabled selected>Select Batch</option>
+                                <option value="First Batch">First Batch</option>
+                                <option value="Second Batch">Second Batch</option>
+                                <option value="Third Batch">Third Batch</option>
+                                <option value="Fourth Batch">Fourth Batch</option>
+                                <option value="Fifth Batch">Fifth Batch</option>
+                                <option value="Sixth Batch">Sixth Batch</option>
+                                <option value="Seventh Batch">Seventh Batch</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full py-4 rounded-lg btn-primary mt-6 text-lg">Generate Card</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- View: Result -->
+        <div id="view-result" class="view-section w-full max-w-4xl">
+            <div class="glass-panel p-8 rounded-2xl flex flex-col items-center space-y-6">
+                <h2 class="text-3xl font-bold text-yellow-500">Card Generated!</h2>
+                
+                <canvas id="user-canvas" class="max-w-full h-auto shadow-2xl rounded-lg border-4 border-gray-800"></canvas>
+                
+                <div class="flex space-x-4 w-full max-w-md">
+                    <button onclick="app.downloadCard()" class="flex-1 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Download
+                    </button>
+                    <button onclick="app.navigate('user')" class="flex-1 py-3 border border-gray-600 text-gray-300 font-medium rounded-lg hover:bg-gray-800 transition">
+                        Create New
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="p-4 text-center text-gray-600 text-sm">
+        <p>&copy; 2026 Membership System</p>
+    </footer>
+
+    <!-- Application Logic -->
+    <script>
+        const app = {
+            state: {
+                currentView: 'home',
+                templateImage: null, // Base64 string
+                config: {
+                    name: { x: 50, y: 50, size: 60 },
+                    batch: { x: 50, y: 65, size: 30 }
+                },
+                userData: {
+                    name: "Preview Name",
+                    batch: "First Batch"
+                }
+            },
+
+            // Constants
+            defaults: {
+                width: 1080, // Canvas internal width
+                height: 1080 // Canvas internal height (will adjust to image aspect ratio)
+            },
+
+            init() {
+                // Load from local storage
+                const savedConfig = localStorage.getItem('cardConfig');
+                const savedImg = localStorage.getItem('cardTemplate');
+                
+                if (savedConfig) this.state.config = JSON.parse(savedConfig);
+                if (savedImg) {
+                    this.state.templateImage = savedImg;
+                    // Pre-load image for canvas
+                    this.imgObj = new Image();
+                    this.imgObj.src = savedImg;
+                    this.imgObj.onload = () => {
+                        this.updatePreview();
+                    };
+                }
+
+                // Initial UI set from config
+                this.updateAdminInputs();
+            },
+
+            navigate(viewId) {
+                // Check if template exists for user flow
+                if (viewId === 'user' && !this.state.templateImage) {
+                    alert("Please ask the Admin to upload a template image first!");
+                    return;
+                }
+
+                // Hide all views
+                document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+                
+                // Show target view
+                document.getElementById(`view-${viewId}`).classList.add('active');
+                this.state.currentView = viewId;
+
+                if (viewId === 'admin') {
+                    // Slight delay to allow canvas to be in DOM
+                    setTimeout(() => this.updatePreview(), 50);
+                }
+            },
+
+            handleImageUpload(input) {
+                const file = input.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.state.templateImage = e.target.result;
+                    document.getElementById('upload-label').innerText = file.name;
+                    
+                    this.imgObj = new Image();
+                    this.imgObj.src = this.state.templateImage;
+                    this.imgObj.onload = () => {
+                        this.updatePreview();
+                    }
+                };
+                reader.readAsDataURL(file);
+            },
+
+            updateAdminInputs() {
+                // Sync range sliders with state
+                document.getElementById('name-x').value = this.state.config.name.x;
+                document.getElementById('name-y').value = this.state.config.name.y;
+                document.getElementById('name-size').value = this.state.config.name.size;
+                
+                document.getElementById('batch-x').value = this.state.config.batch.x;
+                document.getElementById('batch-y').value = this.state.config.batch.y;
+                document.getElementById('batch-size').value = this.state.config.batch.size;
+            },
+
+            updatePreview() {
+                // Update state from inputs if we are in admin mode
+                if (this.state.currentView === 'admin') {
+                    this.state.config.name.x = parseInt(document.getElementById('name-x').value);
+                    this.state.config.name.y = parseInt(document.getElementById('name-y').value);
+                    this.state.config.name.size = parseInt(document.getElementById('name-size').value);
+                    
+                    this.state.config.batch.x = parseInt(document.getElementById('batch-x').value);
+                    this.state.config.batch.y = parseInt(document.getElementById('batch-y').value);
+                    this.state.config.batch.size = parseInt(document.getElementById('batch-size').value);
+                }
+
+                const canvas = document.getElementById(this.state.currentView === 'admin' ? 'admin-canvas' : 'user-canvas');
+                if (!canvas) return;
+                
+                const ctx = canvas.getContext('2d');
+
+                // If no image, show placeholder
+                if (!this.state.templateImage || !this.imgObj) {
+                    canvas.width = 600;
+                    canvas.height = 400;
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(0,0, 600, 400);
+                    ctx.fillStyle = '#555';
+                    ctx.font = '20px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText("No Template Uploaded", 300, 200);
+                    return;
+                }
+
+                // Set canvas size to image size
+                canvas.width = this.imgObj.width;
+                canvas.height = this.imgObj.height;
+
+                // Draw Background
+                ctx.drawImage(this.imgObj, 0, 0);
+
+                // Calculate positions
+                // We use percentages (0-100) to keep position relative to image size
+                const nameX = (this.state.config.name.x / 100) * canvas.width;
+                const nameY = (this.state.config.name.y / 100) * canvas.height;
+                const batchX = (this.state.config.batch.x / 100) * canvas.width;
+                const batchY = (this.state.config.batch.y / 100) * canvas.height;
+
+                // Draw Name (Clash Grotesk Medium, White)
+                ctx.font = `500 ${this.state.config.name.size * (canvas.width/1000) * 2}px 'Clash Grotesk'`;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.state.userData.name.toUpperCase(), nameX, nameY);
+
+                // Draw Batch (Clash Grotesk Light/Thin, Gold)
+                ctx.font = `200 ${this.state.config.batch.size * (canvas.width/1000) * 1.5}px 'Clash Grotesk'`;
+                ctx.fillStyle = '#FFD700'; // Gold
+                ctx.textAlign = 'center';
+                ctx.fillText(this.state.userData.batch, batchX, batchY);
+            },
+
+            saveConfig() {
+                localStorage.setItem('cardConfig', JSON.stringify(this.state.config));
+                localStorage.setItem('cardTemplate', this.state.templateImage);
+                alert("Configuration Saved! Users can now generate cards.");
+            },
+
+            generateCard(e) {
+                e.preventDefault();
+                const name = document.getElementById('user-name').value;
+                const batch = document.getElementById('user-batch').value;
+                
+                this.state.userData = { name, batch };
+                
+                // Switch view first to ensure canvas exists
+                this.navigate('result');
+                
+                // Wait for DOM then draw
+                setTimeout(() => {
+                    this.updatePreview();
+                }, 100);
+            },
+
+            downloadCard() {
+                const canvas = document.getElementById('user-canvas');
+                const link = document.createElement('a');
+                link.download = `Membership_${this.state.userData.name.replace(/\s+/g, '_')}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            },
+
+            resetData() {
+                if(confirm("Reset all stored images and settings?")) {
+                    localStorage.clear();
+                    location.reload();
+                }
+            }
+        };
+
+        // Initialize App
+        window.addEventListener('load', () => app.init());
+
+    </script>
+</body>
+</html>
