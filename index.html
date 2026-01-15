@@ -28,7 +28,7 @@
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
 
     <nav class="absolute top-0 w-full p-4 border-b border-gray-800 flex justify-between">
-        <div class="text-xl font-bold tracking-wider text-white mx-auto md:mx-0">CARD<span class="text-yellow-500">GEN</span></div>
+        <div class="text-xl font-bold tracking-wider text-white mx-auto md:mx-0">IFADA<span class="text-yellow-500"> 2026</span></div>
         <a href="membership_admin.html" class="hidden md:block text-gray-500 text-xs hover:text-white mt-1">Admin Panel</a>
     </nav>
 
@@ -46,7 +46,7 @@
                 <!-- Name -->
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
-                    <input type="text" id="user-name" required placeholder="Ex: John Doe" class="w-full p-3 rounded-lg input-dark">
+                    <input type="text" id="user-name" required placeholder="Full Name" class="w-full p-3 rounded-lg input-dark">
                 </div>
 
                 <!-- Batch -->
@@ -82,14 +82,6 @@
                     <input type="file" id="payment-screenshot" required accept="image/*" onchange="memberApp.verifyPayment(this)" class="w-full p-2 rounded-lg input-dark text-sm text-gray-400">
                     
                     <div id="payment-status" class="mt-2 text-xs text-gray-500 italic">Waiting for upload...</div>
-                    
-                    <!-- Manual Verify Link (Visible immediately after upload) -->
-                    <div id="manual-verify-container" class="hidden mt-3 border-t border-gray-700 pt-2">
-                        <p class="text-xs text-gray-400 mb-1">Is scanning taking too long?</p>
-                        <button type="button" onclick="memberApp.bypassVerification()" class="text-xs font-bold text-yellow-500 hover:text-white underline cursor-pointer">
-                            Click here to verify manually & continue
-                        </button>
-                    </div>
                 </div>
 
                 <button type="submit" id="generate-btn" disabled class="w-full py-4 rounded-lg btn-disabled mt-6 text-lg transition flex items-center justify-center">
@@ -209,22 +201,19 @@
             verifyPayment(input) {
                 const file = input.files[0];
                 const statusDiv = document.getElementById('payment-status');
-                const manualDiv = document.getElementById('manual-verify-container');
                 const btn = document.getElementById('generate-btn');
 
                 if (!file) return;
 
-                // Show manual button IMMEDIATELY so user is never blocked
-                manualDiv.classList.remove('hidden');
                 statusDiv.innerHTML = '<div class="loader" style="width:12px;height:12px;border-width:2px"></div> Scanning...';
                 
-                // Disable generate until verified (auto or manual)
+                // Disable generate until verified
                 btn.disabled = true;
                 btn.classList.add('btn-disabled');
                 btn.classList.remove('btn-primary');
 
                 if (typeof Tesseract === 'undefined') {
-                    statusDiv.innerHTML = '<span class="text-yellow-500">Scanner library missing. Please click Manual Verify below.</span>';
+                    statusDiv.innerHTML = '<span class="text-red-500">Scanner library missing. Check connection.</span>';
                     return;
                 }
 
@@ -233,7 +222,6 @@
                         console.log("Scan Result:", text);
                         
                         // Loose regex for finding 600 or higher
-                        // Matches: 600, 600.00, 1000, 1,000, ₹600, etc.
                         const matches = text.replace(/[\n\r]+/g, ' ').match(/[\d,]+\.?\d*/g);
                         let hasValidAmount = false;
                         
@@ -248,24 +236,18 @@
                         if (hasValidAmount || text.includes('600')) {
                             this.successVerification();
                         } else {
-                            statusDiv.innerHTML = '<span class="text-red-400">Could not read "600". Please use Manual Verify below.</span>';
+                            statusDiv.innerHTML = '<span class="text-red-400">Could not read "600". Please try a clearer image.</span>';
                         }
                     })
                     .catch(err => {
                         console.error(err);
-                        statusDiv.innerHTML = '<span class="text-red-400">Scanner Error. Please use Manual Verify below.</span>';
+                        statusDiv.innerHTML = '<span class="text-red-400">Scanner Error. Please try uploading again.</span>';
                     });
-            },
-
-            bypassVerification() {
-                this.successVerification();
-                document.getElementById('payment-status').innerHTML += ' <span class="text-yellow-500 ml-2">(Manually Verified)</span>';
             },
 
             successVerification() {
                 this.isPaymentVerified = true;
                 document.getElementById('payment-status').innerHTML = '<span class="text-green-500 font-bold">✓ Verified</span>';
-                document.getElementById('manual-verify-container').classList.add('hidden');
                 
                 const btn = document.getElementById('generate-btn');
                 btn.disabled = false;
